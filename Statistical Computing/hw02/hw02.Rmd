@@ -1,0 +1,140 @@
+---
+title: "hw02"
+author: "曾舸舵"
+date: "2022/3/21"
+documentclass: ctexart
+output: rticles::ctex
+---
+
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+# library(tidyverse)
+```
+
+# 5.3
+
+$$\widehat\theta=\int_0^{0.5} e^{-x}dx=0.5Ee^{-U(0, 0.5)}$$ $$\theta^*=\int_0^{0.5} e^{-x}dx=F(x<=0.5)$$其中F为$exp(1)$的cdf
+
+```{r 5.3_1}
+int5.3_1 <- function(N=1e4){
+  x <- runif(N, 0, 0.5)
+  y <- runif(N, 0, 2)
+  return(sum(as_vector(map2(x, y, ~ .y < exp(-.x)))) / N)
+}
+
+int5.3_2 <- function(N=1e4){
+  x <- runif(N, 0, 0.5)
+  return(mean(exp(-x))/2)
+}
+
+int5.3_3 <- function(N=1e4){
+  x <- rexp(N)
+  return(sum(as_vector(x %>% map(~.<0.5))) / N)
+}
+int5.3_1()#theta_hat
+int5.3_2()#theta_hat
+int5.3_3()#theta*
+```
+
+$\theta^*>\widehat\theta$
+
+# 5.6
+
+$$Cov(e^U,e^{1-U})=Ee^1-(Ee^U)^2=e-(e-1)^2=-e^2+3e-1$$$$Var(e^U+e^{1-U})=Var(e^U)+Var(e^{1-U})+2Cov(e^U,e^{1-U})=-3 e^2 + 10 e - 5$$
+
+$$
+Var\left (\frac{e^U+e^{1-U}}{2}\right)=\frac{-3 e^2 + 10 e - 5}{4}
+$$
+
+$$
+Var(e^U)=\frac{-e^2+4e-3}{2}
+$$
+
+$$1- \frac{Var\left (\frac{e^U+e^{1-U}}{2}\right)}{Var(e^U)}\approx 0.98$$
+
+# 5.7
+
+```{r 5.7}
+N <- 1e4
+int_5.7_anti <- function(N=1e4){
+  U <- runif(N)
+  ans <- (exp(U) + exp(1-U)) / 2
+  return(list(mean=mean(ans), var=var(ans)))
+}
+
+int_5.7_mc <- function(N=1e4){
+  U <- runif(N)
+  ans <- exp(U)
+  return(list(mean=mean(ans), var=var(ans)))
+}
+
+
+1 - int_5.7_anti(N)$var / int_5.7_mc(N)$var
+ 
+ 
+```
+
+# 5.11
+
+$$Var(\hat\theta_c)(c)=Var\left (c\hat {\theta}_1+(1-c)\hat\theta_2\right )=c^2Var(\hat {\theta}_1)+(1-c)^2\hat\theta_2+2Cov(\hat {\theta}_1,\hat {\theta}_2)$$$$Var(\hat\theta_c)(c)\geqslant 2Cov(\hat \theta_1,\hat\theta_2)+\frac{Var(\hat {\theta}_1)Var(\hat {\theta}_2)}{Var(\hat {\theta}_1)+Var(\hat {\theta}_2)}$$when$$c=\frac{Var(\hat\theta_2)}{Var(\hat\theta_1)+Var(\hat\theta_2)}$$
+
+# 5.13
+$$
+f_0(x)=\int_1^{+\infty}\frac{x^2}{\sqrt{2\pi}}e^{-\frac{x^2}{2}}dx
+$$
+
+$$
+f_1(x)=\frac 1 {\sqrt{2\pi}}e^{-\frac{(x-0.5)^2}{2}}
+$$
+
+$$
+f_2(x)=\frac 1 {\sqrt{2\pi}}e^{-\frac{(x-1)^2}{2}}
+$$
+
+```{r 5.13}
+N <- 1e5
+
+int_5.13_f <- function(N, mu=0){
+  x <- rnorm(N, mu)
+  y <- x^2 * exp((mu^2-2*mu*x)/2) * (x > 1)
+  return(list(value=mean(y), var=var(y)))
+}
+
+int_5.13_f(N, 0) %>% str()#f0
+int_5.13_f(N, 0.5) %>% str()#f1
+int_5.13_f(N, 1) %>% str()#f2
+
+```
+$Var(f_1) > Var(f_2)$, because $E(\frac{f_0^2}{f_1^2})<E(\frac{f_0^2}{f_2^2})$
+
+```{r 5.13_2, echo=FALSE}
+x <- runif(1e4, -10,10)
+ggplot() + 
+  geom_line(aes(x,y), tibble(x=x, y=x^2/sqrt(pi)*exp(-x**2))) + 
+  geom_line(aes(x,y), tibble(x=x, y=dnorm(x, 0.5, 1)),color='red') +
+  geom_line(aes(x,y), tibble(x=x, y=dnorm(x,1,1)),color='blue') +
+  coord_cartesian(xlim=c(1,10))
+```
+
+# 5.15
+
+```{r 5.15}
+int_5.15 <- function(N, interval=1){
+  mu <- numeric(interval)
+  se <- numeric(interval)
+  x <- runif(N %/% interval, 0,  1  %/% N)
+  g <- function(x){exp(-x - log(1+x^2)) * (x > 0) * (x < 1)}
+  for (i in 1:interval){
+    x <- runif(N %/% interval, (i-1) * 1  / interval, i / interval)
+    mu[i] <- mean(g(x))
+    se[i] <- sd(g(x))
+  }
+  return(list(mu=mean(mu), se=sum(se)))
+}
+
+int_5.15(1e5, 1) %>% str()
+int_5.15(1e5, 1e2) %>% str()
+
+
+```

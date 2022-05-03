@@ -1,0 +1,12 @@
+---
+title: "hw04"
+author: "曾舸舵"
+date: "2022/4/27"
+documentclass: ctexart
+output: rticles::ctex
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
