@@ -2,11 +2,111 @@
 title: "hw04"
 author: "曾舸舵"
 date: "2022/4/27"
-documentclass: ctexart
-output: rticles::ctex
+output:
+  pdf_document:
+    latex_engine: xelatex
 ---
 
 ```{r setup, include=FALSE}
 knitr::opts_chunk$set(echo = TRUE)
+library(tidyverse)
+library(modelr)
+library(corrr)
+jackknife <- bootstrap::jackknife
 ```
 
+## 7.2
+
+Refer to the law data (bootstrap). Use the jackknife-after-bootstrap method to estimate the standard error of the bootstrap estimate of se(R).
+
+```{r 7.2}
+data_law <- as_tibble(bootstrap::law)
+
+# Bootstrap
+n <- 10
+boot <- data_law %>% 
+  bootstrap(n)
+
+grp_boot <- boot$strap %>% map(as_tibble)
+
+# define function of R
+r <- function(tib, col1=1, col2=2) {
+  return(cor(tib[, col1], tib[, col2])[[1]])
+  }
+
+# jackknife
+r_boot <-  grp_boot %>% map_dbl(r)
+
+jknf <- r_boot %>% jackknife(mean)
+
+#result
+jknf$jack.se
+```
+
+## 7.3
+
+Obtain a bootstrap t confidence interval estimate for the correlation statistic in Example 7.2 (law data in bootstrap).
+
+First compute the $\hat R$.
+
+```{r 7.3.1}
+r_mu <- r(data_law)
+```
+
+Then use bootstrap to compute the $\hat{se} \widehat {R^{(b)}}$ for every sample in 7.2.
+
+```{r 7.3.2, warning=FALSE}
+# bootstrap again
+boot_grp_boot <- list()
+
+for (i in 1:n){
+boot_grp_boot[i] <- bootstrap(grp_boot[i] %>% as.data.frame(), n)
+}
+
+grp_boot_grp_boot <- list()
+sd_r_boot <- list()
+
+for (i in 1:n){
+    grp_boot_grp_boot[[i]] <- boot_grp_boot[[i]] %>% map(as_tibble)
+    sd_r_boot <- grp_boot_grp_boot[[i]] %>% map_dbl(r) %>% sd()
+}
+```
+
+Then Compute the t-statistics for every $\hat{se} \widehat {R^{(b)}}$ and compute the quantile of them.
+
+```{r 7.3.3}
+
+t_boot <- (r_boot - r_mu) / sd_r_boot
+
+alpha <- 0.05
+
+Qt <- quantile(t_boot, c(alpha/2, 1-alpha/2), type = 1)
+```
+
+In the end, compute the sample standard deviation $\hat {se} \hat R$ in the first resampling and compute the Bootstrap t CI.
+
+``` {r 7.3.4}
+se_boot <- sd(r_boot)
+
+r_mu + Qt * se_boot
+```
+
+```{r 7.4}
+
+```
+
+```{r 7.5}
+
+```
+
+```{r 7.7}
+
+```
+
+```{r 7.8}
+
+```
+
+```{r 7.10}
+
+```
