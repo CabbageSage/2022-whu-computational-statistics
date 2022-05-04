@@ -1,10 +1,9 @@
 ---
 title: "hw04"
-author: "曾舸舵"
+author: "Zeng Geduo 2020302121048"
 date: "2022/4/27"
-output:
-  pdf_document:
-    latex_engine: xelatex
+# documentclass: ctexart
+output: pdf_document
 ---
 
 ```{r setup, include=FALSE}
@@ -13,21 +12,24 @@ library(tidyverse)
 library(modelr)
 library(corrr)
 jackknife <- bootstrap::jackknife
+options(warn=-1)
 ```
 
 ## 7.2
 
 Refer to the law data (bootstrap). Use the jackknife-after-bootstrap method to estimate the standard error of the bootstrap estimate of se(R).
 
+### Solution
+
 ```{r 7.2}
 data_law <- as_tibble(bootstrap::law)
 
 # Bootstrap
 n <- 10
-boot <- data_law %>% 
+boot_ <- data_law %>% 
   bootstrap(n)
 
-grp_boot <- boot$strap %>% map(as_tibble)
+grp_boot <- boot_$strap %>% map(as_tibble)
 
 # define function of R
 r <- function(tib, col1=1, col2=2) {
@@ -47,29 +49,35 @@ jknf$jack.se
 
 Obtain a bootstrap t confidence interval estimate for the correlation statistic in Example 7.2 (law data in bootstrap).
 
+### Solution
+
 First compute the $\hat R$.
 
 ```{r 7.3.1}
 r_mu <- r(data_law)
+r_mu
 ```
 
 Then use bootstrap to compute the $\hat{se} \widehat {R^{(b)}}$ for every sample in 7.2.
 
 ```{r 7.3.2, warning=FALSE}
-# bootstrap again
+# bootstrap for every sample
 boot_grp_boot <- list()
-
-for (i in 1:n){
-boot_grp_boot[i] <- bootstrap(grp_boot[i] %>% as.data.frame(), n)
-}
-
 grp_boot_grp_boot <- list()
-sd_r_boot <- list()
+sd_r_boot <- numeric(0)
 
 for (i in 1:n){
-    grp_boot_grp_boot[[i]] <- boot_grp_boot[[i]] %>% map(as_tibble)
-    sd_r_boot <- grp_boot_grp_boot[[i]] %>% map_dbl(r) %>% sd()
+  boot_grp_boot[i] <- bootstrap(grp_boot[[i]] %>% 
+                                  as.data.frame(), n)
+  
+  grp_boot_grp_boot[[i]] <- boot_grp_boot[[i]] %>% 
+    map(as_tibble) # convert to tibble
+  
+  sd_r_boot[[i]] <- grp_boot_grp_boot[[i]] %>% 
+      map_dbl(r) %>% 
+      sd()
 }
+
 ```
 
 Then Compute the t-statistics for every $\hat{se} \widehat {R^{(b)}}$ and compute the quantile of them.
@@ -85,16 +93,44 @@ Qt <- quantile(t_boot, c(alpha/2, 1-alpha/2), type = 1)
 
 In the end, compute the sample standard deviation $\hat {se} \hat R$ in the first resampling and compute the Bootstrap t CI.
 
-``` {r 7.3.4}
+```{r 7.3.4}
 se_boot <- sd(r_boot)
 
 r_mu + Qt * se_boot
+# 
+# boot::boot.ci()
 ```
 
-```{r 7.4}
+## 7.4
 
+Refer to the air-conditioning data set *aircondit* provided in the *boot* package. The 12 observations are the times in hours between failures of airconditioning equipment [63, Example 1.1]:
+
+3, 5, 7, 18, 43, 85, 91, 98, 100, 130, 230, 487.
+
+Assume that the times between failures follow an exponential model Exp($\lambda$). Obtain the MLE of the hazard rate $\lambda$ and use bootstrap to estimate the bias and standard error of the estimate.
+
+### Solution
+
+```{r 7.4.1}
+data_air <- boot::aircondit
+
+vec_air_time_diff <- data_air %>% 
+  as_vector() %>% 
+  diff()
+
+vec_air_time_diff
 ```
 
+Because the times between failures follow an exponential model Exp($\lambda$), so the likelihood function is $$L(\lambda)=\prod \lambda e^{\lambda X_i}$$.
+
+Considering that $$ln L(\lambda)=nln\lambda - \lambda \sum X_i$$ $$\frac{\partial ln L}{\partial \lambda}=\frac n \lambda - \sum X_i = 0$$ so that $$MLE(\lambda)=\frac {1} {\overline {X_i}}$$
+
+```{r 7.4.2}
+MLE_exp <- function(data, i){
+  return(1 / mean(data[i]))
+}
+boot::boot(vec_air_time_diff, MLE_exp, n)
+```
 ```{r 7.5}
 
 ```
