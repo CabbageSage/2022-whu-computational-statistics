@@ -4,15 +4,17 @@ author: "Zeng Geduo 2020302121048"
 date: "2022/4/27"
 # documentclass: ctexart
 output: pdf_document
+
 ---
 
 ```{r setup, include=FALSE}
 knitr::opts_chunk$set(echo = TRUE)
 library(tidyverse)
-library(modelr)
+# library(modelr)
 library(corrr)
 jackknife <- bootstrap::jackknife
 options(warn=-1)
+library(lattice)
 ```
 
 ## 7.2
@@ -22,12 +24,12 @@ Refer to the law data (bootstrap). Use the jackknife-after-bootstrap method to e
 ### Solution
 
 ```{r 7.2}
-data_law <- as_tibble(bootstrap::law)
+tbl_law <- bootstrap::law %>% as_tibble
 
 # Bootstrap
-n <- 10
-boot_ <- data_law %>% 
-  bootstrap(n)
+n <- 100
+boot_ <- tbl_law %>% 
+  modelr::bootstrap(n)
 
 grp_boot <- boot_$strap %>% map(as_tibble)
 
@@ -49,13 +51,14 @@ jknf$jack.se
 
 Obtain a bootstrap t confidence interval estimate for the correlation statistic in Example 7.2 (law data in bootstrap).
 
-### Solution
+### Solution 1
 
 First compute the $\hat R$.
 
 ```{r 7.3.1}
-r_mu <- r(data_law)
+r_mu <- r(tbl_law)
 r_mu
+
 ```
 
 Then use bootstrap to compute the $\hat{se} \widehat {R^{(b)}}$ for every sample in 7.2.
@@ -67,7 +70,7 @@ grp_boot_grp_boot <- list()
 sd_r_boot <- numeric(0)
 
 for (i in 1:n){
-  boot_grp_boot[i] <- bootstrap(grp_boot[[i]] %>% 
+  boot_grp_boot[i] <- modelr::bootstrap(grp_boot[[i]] %>% 
                                   as.data.frame(), n)
   
   grp_boot_grp_boot[[i]] <- boot_grp_boot[[i]] %>% 
@@ -86,7 +89,7 @@ Then Compute the t-statistics for every $\hat{se} \widehat {R^{(b)}}$ and comput
 
 t_boot <- (r_boot - r_mu) / sd_r_boot
 
-alpha <- 0.05
+alpha <- 0.1
 
 Qt <- quantile(t_boot, c(alpha/2, 1-alpha/2), type = 1)
 ```
@@ -97,8 +100,49 @@ In the end, compute the sample standard deviation $\hat {se} \hat R$ in the firs
 se_boot <- sd(r_boot)
 
 r_mu + Qt * se_boot
-# 
-# boot::boot.ci()
+
+```
+
+### Solution 2
+
+```{r}
+get_r <- function(data, indices, x, y) {
+
+  d <- data[indices, ]
+  r <- as.numeric(cor(d[x], d[y]))
+
+  return(r)
+
+}
+
+get_r_var <- function(x, y, data, indices, its) {
+
+  d <- data[indices, ]
+  r <- cor(d[x], d[y]) %>%
+    as.numeric()
+  
+  n <- nrow(d)
+
+  v <- boot::boot(
+    x=x,
+    y=y,
+    R = its,
+    data = d,
+    statistic = get_r
+  ) %>%
+    pluck("t") %>%
+    var(na.rm = TRUE)
+
+  return(c(r, v))
+
+}
+
+boot_t_out <- boot::boot(
+  x = "LSAT", y = "GPA", its = 200,
+  R = 1000, data = tbl_law, statistic = get_r_var
+)
+boot::boot.ci(boot_t_out, type="stud")
+
 ```
 
 ## 7.4
@@ -129,20 +173,123 @@ Considering that $$ln L(\lambda)=nln\lambda - \lambda \sum X_i$$ $$\frac{\partia
 MLE_exp <- function(data, i){
   return(1 / mean(data[i]))
 }
-boot::boot(vec_air_time_diff, MLE_exp, n)
+boot_obj <- boot::boot(vec_air_time_diff, MLE_exp, n)
+boot_obj
 ```
-```{r 7.5}
 
+## 7.5
+
+Refer to Exercise 7.4. Compute 95% bootstrap confidence intervals for the mean time between failures 1/$\lambda$ by the standard normal, basic, percentile, and BCa methods. Compare the intervals and explain why they may differ.
+
+### Solution
+
+```{r 7.5}
+boot::boot.ci(boot_obj, type=c("norm", "basic", "perc", "bca"))
 ```
+
+## 7.7
+
+Refer to Exercise 7.6. Efron and Tibshirani discuss the following example [84, Ch. 7]. The five-dimensional scores data have a 5 × 5 covariance matrix $\Sigma$, with positive eigenvalues $\lambda_1 > \cdots > \lambda_5$. In principal components analysis,$$
+\theta = \frac {\lambda_1}{\sum_{j=1}^{5} \lambda_j}
+ $$ measures the proportion of variance explained by the first principal component. Let $\hat \lambda_1 > \cdots > \hat \lambda_5$ be the eigenvalues of $\hat \Sigma$, where $\hat \Sigma$ is the MLE of $\Sigma$. Compute the sample estimate 
+$$
+\hat\theta = \frac {\hat\lambda_1}{\sum_{j=1}^{5} \hat\lambda_j}
+$$
+### Solution
 
 ```{r 7.7}
+tbl_scor <- bootstrap::scor
+res_pca_scor <- prcomp(tbl_scor, scale = TRUE)
 
+get_theta <- function(data, indices){
+  d <- data[indices,]
+  egn_vl <- prcomp(d, scale=TRUE)$sdev ** 2
+  return(egn_vl[[1]] / sum(egn_vl))
+}
+
+boot_scor <- boot::boot(tbl_scor, get_theta, n)
+boot_scor
 ```
+
+## 7.8
+
+Refer to Exercise 7.7. Obtain the jackknife estimates of bias and standard error of $\hat \theta$.
 
 ```{r 7.8}
+# Bootstrap
+n <- 100
+boot_ <- tbl_scor %>% 
+  modelr::bootstrap(n)
 
+grp_boot <- boot_$strap %>% map(as_tibble)
+
+
+# jackknife
+r_boot <-  grp_boot %>% map_dbl(get_theta)
+
+jknf <- r_boot %>% jackknife(mean)
+
+#result
+jknf$jack.se
 ```
 
-```{r 7.10}
+## 7.10
 
+In Example 7.18, leave-one-out (n-fold) cross validation was used to select the best fitting model. Repeat the analysis replacing the Log-Log model with a cubic polynomial model. Which of the four models is selected by the cross validation procedure? Which model is selected according to maximum adjusted $R^2$?
+
+```{r 7.10, warning=FALSE}
+library(DAAG); attach(ironslag)
+a <- seq(10, 40, .1) #sequence for plotting fits
+
+L1 <- lm(magnetic ~ chemical)
+plot(chemical, magnetic, main="Linear", pch=16)
+yhat1 <- L1$coef[1] + L1$coef[2] * a
+lines(a, yhat1, lwd=2)
+
+L2 <- lm(magnetic ~ poly(chemical, 2, raw=TRUE))
+plot(chemical, magnetic, main="Quadratic", pch=16)
+yhat2 <- L2$coef[1] + L2$coef[2] * a + L2$coef[3] * a^2
+lines(a, yhat2, lwd=2)
+
+L3 <- lm(log(magnetic) ~ chemical)
+plot(chemical, magnetic, main="Exponential", pch=16)
+logyhat3 <- L3$coef[1] + L3$coef[2] * a
+yhat3 <- exp(logyhat3)
+lines(a, yhat3, lwd=2)
+
+L4 <- lm(magnetic ~ poly(chemical, 3, raw=TRUE))
+plot(chemical, magnetic, main="Cubic", pch=16)
+hat4 <- L4$coef[1] + L4$coef[2] * a + L4$coef[3] * a^2 + L4$coef[4] * a^3
+lines(a, hat4, lwd=2)
+
+n <- length(magnetic) #in DAAG ironslag
+e1 <- e2 <- e3 <- e4 <- numeric(n)
+# for n-fold cross validation
+# fit models on leave-one-out samples
+for (k in 1:n) {
+y <- magnetic[-k]
+x <- chemical[-k]
+J1 <- lm(y ~ x)
+yhat1 <- J1$coef[1] + J1$coef[2] * chemical[k]
+e1[k] <- magnetic[k] - yhat1
+
+J2 <- lm(y ~ poly(x, 2, raw=TRUE))
+yhat2 <- J2$coef[1] + J2$coef[2] * chemical[k] + J2$coef[3] * chemical[k]^2
+e2[k] <- magnetic[k] - yhat2
+
+J3 <- lm(log(y) ~ x)
+logyhat3 <- J3$coef[1] + J3$coef[2] * chemical[k]
+yhat3 <- exp(logyhat3)
+e3[k] <- magnetic[k] - yhat3
+
+J4 <- lm(y ~ poly(x, 3, raw=TRUE))
+yhat4 <- J4$coef[1] + J4$coef[2] * chemical[k] + J4$coef[3] * chemical[k]^2 + J4$coef[4] * chemical[k]^3
+e4[k] <- magnetic[k] - yhat4
+}
+
+c(mean(e1^2), mean(e2^2), mean(e3^2), mean(e4^2))
+adj_rsq <- function(mdl) summary(mdl)$adj.r.squared
+c(adj_rsq(L1), adj_rsq(L2), adj_rsq(L3), adj_rsq(L4))
 ```
+Choose the quadratic model according to the prediction error criterion.
+Choose the quadratic model according to the adjusted r-squared.
