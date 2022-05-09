@@ -292,4 +292,5 @@ adj_rsq <- function(mdl) summary(mdl)$adj.r.squared
 c(adj_rsq(L1), adj_rsq(L2), adj_rsq(L3), adj_rsq(L4))
 ```
 Choose the quadratic model according to the prediction error criterion.
+
 Choose the quadratic model according to the adjusted r-squared.
