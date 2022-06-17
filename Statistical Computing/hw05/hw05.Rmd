@@ -1,0 +1,123 @@
+---
+title: "hw05"
+author: "曾舸舵2020302121048"
+date: '2022-05-16'
+documentclass: ctexart
+output: rticles::ctex
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library(mixtools)
+```
+
+## 1
+
+### (1)
+
+E步
+
+$$E(Z_{ij}|x,\theta^{(t)})=z_{ij}^{(k)}$$
+
+$$Q = \sum\sum z_{ij}^{(t)}\log p_i-\frac 1 2 \sum\sum z_{ij}^{(t)}[2\log\sigma +(x_j-\mu_i)^2/\sigma^2]+const$$
+
+M步 $$p_i^{(t+1)}=\frac 1 n \sum_j z_{ij}^{(t)}\\\mu_i^{(t+1)}=\frac{\sum_j z_{ij}x_j}{\sum_j z_{ij}}\\(\sigma^2)^{(t+1)}=\sum\sum z_{ij}^{(t)}(x_j-\mu_i^{(t+1)})^2/n$$
+
+```{r}
+set.seed(1)
+n <- 100
+p1 <- .2
+p2 <- .3
+p3 <- .5
+p <- c(p1,p2,p3)
+
+mu_1 <- 1
+mu_2 <- 2
+mu_3 <- 3
+mu <- c(mu_1, mu_2, mu_3)
+
+sigma <- 1
+
+X <- rnormmix(n, p, mu, sigma)
+plot(density(X))
+```
+
+```{r}
+# initial value
+p10 <- .18
+p20 <- .31
+p30 <- .51
+mu10 <- 1.1
+mu20 <- 2.1
+mu30 <- 3.1
+
+
+gm <- normalmixEM(X, lambda=c(p10,p20,p30),
+                  mu=c(mu10, mu20, mu30),
+                  arbvar = FALSE,eps=1e-5,
+                  maxit=1e10)
+
+summary(gm)
+plot(gm,which=2)
+lines(density(X))
+```
+
+运用bootstrap分析方差
+
+```{r echo=TRUE, message=FALSE, warning=FALSE, paged.print=FALSE}
+se_bar <- boot.se(gm, arbvar=FALSE, B=50, maxit=1e5)
+
+```
+
+```{r}
+se_bar$lambda.se
+se_bar$mu.se
+se_bar$sigma.se
+```
+
+## 2
+
+### (1)
+
+已知数据$x=(y_1,\cdots,y_n,r)$
+
+设这m个灯泡中，失效时间分别为$t_1,\cdots,t_m$。完全数据对数似然函数为$$\ln L(\theta)=-(n+m)\ln\theta-\frac 1 \theta(\sum_{i=1}^ny_i+\sum_{j=1}^mt_j)$$
+
+由指数分布的无后效性，$E(t_j|t_j>t)=t+\theta^{(s)}$
+
+下面计算$E(t_j|t_j<t)$。考虑$$P(t_j>T|t_j<t)=\frac{P(T<t_j<t)}{P(t_j<t)}=\frac{e^{-T/\theta^{(s)}}-e^{-t/\theta^{(t)}}}{1-e^{-t/\theta^{(s)}}}$$所以$$E(t_j|t_j<t)=\int P(t_j>T|t_j<t)dT= \theta^{(s)}+s-\frac t {1-e^{-t/\theta^{(s)}}}$$
+
+计算$E(t_j|\theta^{(t)},x)$。$$E(t_j|\theta^{(t)},x)=E(t_j|t_j<t)P(t_j<t)+E(t_j|t_j>t)P(t_j>t)\\=\theta^{(s)}+t-\frac t {1-e^{-t/\theta^{(s)}}})\cdot \frac r m+(t+\theta^{(s)})\cdot\frac {m-r}{m}$$
+
+计算$Q_t(\theta)$。$$Q_t(\theta)=E(\ln L(\theta)|y_i,\theta^{(s)})\\=-(n+m)\ln\theta-\frac 1 \theta(\sum_{i=1}^ny_i+(\theta^{(s)}+t-\frac t {1-e^{-t/\theta^{(s)}}})\cdot r +(t+\theta^{(s)})\cdot (m-r))$$
+
+计算$\frac d {dt}Q_s(\theta)=0$。$$\frac d {dt}Q_s(\theta)=\frac{-(n+m)}{\theta}+\frac 1 {\theta^2}(\sum_{i=1}^ny_i+(\theta^{(s)}+t-\frac t {1-e^{-t/\theta^{(s)}}})\cdot r +(t+\theta^{(s)})\cdot (m-r))=0$$
+
+得到$\theta^{(s+1)}=\frac 1 {n+m}(\sum_{i=1}^ny_i-\frac {rt}{1-e^{-t/\theta^{(s)}}} +(t+\theta^{(s)})\cdot m)$
+
+### (2)
+
+```{r}
+set.seed(114514)
+n_all <- 1000
+X <- rexp(n_all)
+t <- 0.5
+m <- 50
+n <- n_all - m
+y_obs <- X[0:n] # 观测数据
+y_obs_sum <- sum(y_obs)
+t_mis <- X[n+1:n] # 未知数据
+r <- length(t_mis[t_mis<t])
+
+theta <- mean(y_obs)
+k <- 0
+k_largest <- 1000
+repeat{
+  theta0 <- theta # 上一个$\theta$值
+  theta <- 1/n_all*(y_obs_sum + m*(theta0 + t) - r*t/(1 - exp(-t/theta0)))
+  k <- k+1
+  if(abs(theta - theta0) < 1e-10 || k >= k_largest) break
+}
+
+theta
+```

@@ -1,0 +1,79 @@
+---
+title: "Untitled"
+author: "ZGD"
+date: '2022-05-24'
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library(tidyverse)
+library(modelr)
+```
+
+
+power： power.t.test / pwr::
+
+---
+
+偏度：moments::skewness
+
+如果偏度系数小于 0
+
+则该图被称为负偏度，大多数数据值大于平均值。大多数值都集中在图表的右侧。
+
+agostino.test
+
+峰度：moments::kurtosis
+
+如果峰度系数小于 3 则数据分布是平峰分布. =3,中峰> 3尖峰
+
+moments::anscombe.test
+
+---
+kfold
+
+mean(lm()$residuals^2)
+
+confint.lm(model)
+
+power.t.test
+
+crossv_loo is leave one out
+
+```{r}
+set.seed(114514)
+cv1 <- crossv_kfold(mtcars, 5)
+cv1
+
+library(purrr)
+cv2 <- crossv_mc(mtcars, 100)
+models <- map(cv2$train, ~ lm(mpg ~ wt, data = .))
+errs <- map2_dbl(models, cv2$test, mse)#mse
+hist(errs)
+
+
+```
+
+```{r}
+library(purrr)
+boot <- bootstrap(mtcars, 100)
+
+models <- map(boot$strap, ~ lm(mpg ~ wt, data = .))
+tidied <- map_df(models, broom::tidy, .id = "id")
+
+hist(subset(tidied, term == "wt")$estimate)
+
+hist(subset(tidied, term == "(Intercept)")$estimate)
+
+
+```
+```{r}
+models %>% 
+  map(summary) %>% 
+  map_dbl("r.squared")
+```
+
+评估模型：broom::glance
+
+%>% arrange排序

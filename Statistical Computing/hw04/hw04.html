@@ -376,28 +376,34 @@ method to estimate the standard error of the bootstrap estimate of
 se(R).</p>
 <div id="solution" class="section level3">
 <h3>Solution</h3>
-<pre class="r"><code>tbl_law &lt;- bootstrap::law %&gt;% as_tibble
+<pre class="r"><code>data(patch, package = &quot;bootstrap&quot;)
+n &lt;- nrow(patch)
+x &lt;- rnorm(1000)
+B &lt;- 2000
+theta.b &lt;- numeric(B)
+# set up storage for the sampled indices
+indices &lt;- matrix(0, nrow = B, ncol = n)
+# jackknife-after-bootstrap step 1: run the bootstrap
+for (b in 1:B) {
+i &lt;- sample(1:n, size = n, replace = TRUE)
+x &lt;- x[i]
+theta.b[b] &lt;- mean(x)
+#save the indices for the jackknife
+indices[b, ] &lt;- i
+}
+#jackknife-after-bootstrap to est. se(se)
+se.jack &lt;- numeric(n)
+for (i in 1:n) {
+#in i-th replicate omit all samples with x[i]
+keep &lt;- (1:B)[apply(indices, MARGIN = 1,
+FUN = function(k) {!any(k == i)})]
+se.jack[i] &lt;- sd(theta.b[keep])
+}
 
-# Bootstrap
-n &lt;- 100
-boot_ &lt;- tbl_law %&gt;% 
-  modelr::bootstrap(n)
-
-grp_boot &lt;- boot_$strap %&gt;% map(as_tibble)
-
-# define function of R
-r &lt;- function(tib, col1=1, col2=2) {
-  return(cor(tib[, col1], tib[, col2])[[1]])
-  }
-
-# jackknife
-r_boot &lt;-  grp_boot %&gt;% map_dbl(r)
-
-jknf &lt;- r_boot %&gt;% jackknife(mean)
-
-#result
-jknf$jack.se</code></pre>
-<pre><code>## [1] 0.0123105</code></pre>
+print(sd(theta.b))</code></pre>
+<pre><code>## [1] 0.05460741</code></pre>
+<pre class="r"><code>print(sqrt((n-1) * mean((se.jack - mean(se.jack))^2)))</code></pre>
+<pre><code>## [1] 0.0412472</code></pre>
 </div>
 </div>
 <div id="section-1" class="section level2">
@@ -407,7 +413,8 @@ statistic in Example 7.2 (law data in bootstrap).</p>
 <div id="solution-1" class="section level3">
 <h3>Solution 1</h3>
 <p>First compute the <span class="math inline">\(\hat R\)</span>.</p>
-<pre class="r"><code>r_mu &lt;- r(tbl_law)
+<pre class="r"><code>n &lt;- 100
+r_mu &lt;- r(tbl_law)
 r_mu</code></pre>
 <pre><code>## [1] 0.7763745</code></pre>
 <p>Then use bootstrap to compute the <span class="math inline">\(\hat{se} \widehat {R^{(b)}}\)</span> for every
@@ -441,7 +448,7 @@ and compute the Bootstrap t CI.</p>
 
 r_mu + Qt * se_boot</code></pre>
 <pre><code>##        5%       95% 
-## 0.6475719 1.2386493</code></pre>
+## 0.5705076 1.1944540</code></pre>
 </div>
 <div id="solution-2" class="section level3">
 <h3>Solution 2</h3>
@@ -489,7 +496,7 @@ boot::boot.ci(boot_t_out, type=&quot;stud&quot;)</code></pre>
 ## 
 ## Intervals : 
 ## Level    Studentized     
-## 95%   (-0.2022,  1.0064 )  
+## 95%   (-0.3206,  0.9962 )  
 ## Calculations and Intervals on Original Scale</code></pre>
 </div>
 </div>
@@ -538,8 +545,8 @@ boot_obj</code></pre>
 ## 
 ## 
 ## Bootstrap Statistics :
-##       original      bias    std. error
-## t1* 0.02272727 0.007396961  0.02742878</code></pre>
+##       original     bias    std. error
+## t1* 0.02272727 0.01209354  0.02588019</code></pre>
 </div>
 </div>
 <div id="section-3" class="section level2">
@@ -560,13 +567,14 @@ may differ.</p>
 ## 
 ## Intervals : 
 ## Level      Normal              Basic         
-## 95%   (-0.0384,  0.0691 )   (-0.0764,  0.0367 )  
+## 95%   (-0.0401,  0.0614 )   (-0.0673,  0.0360 )  
 ## 
 ## Level     Percentile            BCa          
-## 95%   ( 0.0088,  0.1218 )   ( 0.0103,  0.1616 )  
+## 95%   ( 0.0095,  0.1127 )   ( 0.0073,  0.0601 )  
 ## Calculations and Intervals on Original Scale
 ## Some basic intervals may be unstable
 ## Some percentile intervals may be unstable
+## Warning : BCa Intervals used Extreme Quantiles
 ## Some BCa intervals may be unstable</code></pre>
 </div>
 </div>
@@ -604,7 +612,7 @@ boot_scor</code></pre>
 ## 
 ## Bootstrap Statistics :
 ##     original       bias    std. error
-## t1* 0.636196 -0.004739418  0.04304171</code></pre>
+## t1* 0.636196 -0.003430369  0.03664618</code></pre>
 </div>
 <div id="section-5" class="section level2">
 <h2>7.8</h2>
@@ -625,7 +633,7 @@ jknf &lt;- r_boot %&gt;% jackknife(mean)
 
 #result
 jknf$jack.se</code></pre>
-<pre><code>## [1] 0.004444474</code></pre>
+<pre><code>## [1] 0.004749531</code></pre>
 </div>
 <div id="section-6" class="section level2">
 <h2>7.10</h2>
@@ -634,9 +642,8 @@ select the best fitting model. Repeat the analysis replacing the Log-Log
 model with a cubic polynomial model. Which of the four models is
 selected by the cross validation procedure? Which model is selected
 according to maximum adjusted <span class="math inline">\(R^2\)</span>?</p>
-<pre class="r"><code>library(DAAG); attach(ironslag)</code></pre>
-<pre><code>## 载入需要的程辑包：lattice</code></pre>
-<pre class="r"><code>a &lt;- seq(10, 40, .1) #sequence for plotting fits
+<pre class="r"><code>library(DAAG); attach(ironslag)
+a &lt;- seq(10, 40, .1) #sequence for plotting fits
 
 L1 &lt;- lm(magnetic ~ chemical)
 plot(chemical, magnetic, main=&quot;Linear&quot;, pch=16)
@@ -686,12 +693,31 @@ e4[k] &lt;- magnetic[k] - yhat4
 
 c(mean(e1^2), mean(e2^2), mean(e3^2), mean(e4^2))</code></pre>
 <pre><code>## [1] 19.55644 17.85248 18.44188 18.17756</code></pre>
-<pre class="r"><code>adj_rsq &lt;- function(mdl) summary(mdl)$adj.r.squared
+<pre class="r"><code>adj_rsq &lt;-function(mdl) summary(mdl)$adj.r.squared
 c(adj_rsq(L1), adj_rsq(L2), adj_rsq(L3), adj_rsq(L4))</code></pre>
 <pre><code>## [1] 0.5281545 0.5768151 0.5280556 0.5740396</code></pre>
 <p>Choose the quadratic model according to the prediction error
-criterion. Choose the quadratic model according to the adjusted
-r-squared.</p>
+criterion.</p>
+<p>Choose the quadratic model according to the adjusted r-squared.</p>
+<pre class="r"><code>library(modelr)
+cv &lt;- modelr::crossv_loo(DAAG::ironslag)
+
+f1 &lt;- ~ lm(magnetic ~ chemical, data=.)
+f2 &lt;- ~ lm(magnetic ~ poly(chemical, 2), data=.)
+
+models1 &lt;- cv$train %&gt;% 
+  map(f1)
+
+list(model=models1, data=cv$test) %&gt;% 
+  pmap_dbl(mse) %&gt;% 
+  mean()</code></pre>
+<pre><code>## [1] 19.55644</code></pre>
+<pre class="r"><code>models1 %&gt;% 
+  map_df(broom::glance, .id=&quot;id&quot;) %&gt;%
+  select(&#39;adj.r.squared&#39;) %&gt;% 
+  as_vector() %&gt;% 
+  mean()</code></pre>
+<pre><code>## [1] 0.5279975</code></pre>
 </div>
 
 

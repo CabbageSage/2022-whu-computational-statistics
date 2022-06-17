@@ -9,7 +9,7 @@ output: rticles::ctex
 
 ```{r setup, include=FALSE}
 knitr::opts_chunk$set(echo = TRUE)
-# library(tidyverse)
+library(tidyverse)
 ```
 
 # 5.3
@@ -124,17 +124,28 @@ int_5.15 <- function(N, interval=1){
   mu <- numeric(interval)
   se <- numeric(interval)
   x <- runif(N %/% interval, 0,  1  %/% N)
+  
   g <- function(x){exp(-x - log(1+x^2)) * (x > 0) * (x < 1)}
-  for (i in 1:interval){
-    x <- runif(N %/% interval, (i-1) * 1  / interval, i / interval)
-    mu[i] <- mean(g(x))
-    se[i] <- sd(g(x))
+  
+  x_f3 <- \(n,a,b){
+    u <- runif(n)
+    x <- -log(exp(-a)-(exp(-a)-exp(-b))*u)
+    return(x)
+    }
+
+  f3 <- function(x){
+    (5*exp(-x)/(1-exp(-1)))
   }
-  return(list(mu=mean(mu), se=sum(se)))
+  
+  for (i in 1:interval){
+    x <- x_f3(N %/% interval, (i-1) * 1  / interval, i / interval)
+    mu[i] <- mean(g(x)/f3(x))
+    se[i] <- sd(g(x)/f3(x))
+  }
+  return(list(mu=sum(mu), se=sum(se)))
 }
 
-int_5.15(1e5, 1) %>% str()
-int_5.15(1e5, 1e2) %>% str()
+int_5.15(1e3, 5) %>% str()
 
 
 ```

@@ -2,8 +2,8 @@
 title: "hw04"
 author: "Zeng Geduo 2020302121048"
 date: "2022/4/27"
-# documentclass: ctexart
-output: pdf_document
+#documentclass: ctexart
+output: html_document
 
 ---
 
@@ -23,7 +23,7 @@ Refer to the law data (bootstrap). Use the jackknife-after-bootstrap method to e
 
 ### Solution
 
-```{r 7.2}
+```{r 7.2, include=FALSE}
 tbl_law <- bootstrap::law %>% as_tibble
 
 # Bootstrap
@@ -47,6 +47,35 @@ jknf <- r_boot %>% jackknife(mean)
 jknf$jack.se
 ```
 
+```{r}
+data(patch, package = "bootstrap")
+n <- nrow(patch)
+x <- rnorm(1000)
+B <- 2000
+theta.b <- numeric(B)
+# set up storage for the sampled indices
+indices <- matrix(0, nrow = B, ncol = n)
+# jackknife-after-bootstrap step 1: run the bootstrap
+for (b in 1:B) {
+i <- sample(1:n, size = n, replace = TRUE)
+x <- x[i]
+theta.b[b] <- mean(x)
+#save the indices for the jackknife
+indices[b, ] <- i
+}
+#jackknife-after-bootstrap to est. se(se)
+se.jack <- numeric(n)
+for (i in 1:n) {
+#in i-th replicate omit all samples with x[i]
+keep <- (1:B)[apply(indices, MARGIN = 1,
+FUN = function(k) {!any(k == i)})]
+se.jack[i] <- sd(theta.b[keep])
+}
+
+print(sd(theta.b))
+print(sqrt((n-1) * mean((se.jack - mean(se.jack))^2)))
+```
+
 ## 7.3
 
 Obtain a bootstrap t confidence interval estimate for the correlation statistic in Example 7.2 (law data in bootstrap).
@@ -56,6 +85,7 @@ Obtain a bootstrap t confidence interval estimate for the correlation statistic 
 First compute the $\hat R$.
 
 ```{r 7.3.1}
+n <- 100
 r_mu <- r(tbl_law)
 r_mu
 
@@ -288,9 +318,31 @@ e4[k] <- magnetic[k] - yhat4
 }
 
 c(mean(e1^2), mean(e2^2), mean(e3^2), mean(e4^2))
-adj_rsq <- function(mdl) summary(mdl)$adj.r.squared
+adj_rsq <-function(mdl) summary(mdl)$adj.r.squared
 c(adj_rsq(L1), adj_rsq(L2), adj_rsq(L3), adj_rsq(L4))
 ```
 Choose the quadratic model according to the prediction error criterion.
 
 Choose the quadratic model according to the adjusted r-squared.
+
+```{r}
+library(modelr)
+cv <- modelr::crossv_loo(DAAG::ironslag)
+
+f1 <- ~ lm(magnetic ~ chemical, data=.)
+f2 <- ~ lm(magnetic ~ poly(chemical, 2), data=.)
+
+models1 <- cv$train %>% 
+  map(f1)
+
+list(model=models1, data=cv$test) %>% 
+  pmap_dbl(mse) %>% 
+  mean()
+
+models1 %>% 
+  map_df(broom::glance, .id="id") %>%
+  select('adj.r.squared') %>% 
+  as_vector() %>% 
+  mean()
+```
+
